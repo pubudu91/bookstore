@@ -8,8 +8,6 @@ listener http:Listener ep0 = new (9090);
 configurable string dbUser = ?;
 configurable string dbPassword = ?;
 
-string listBooksQuery = "SELECT first_name, last_name, title, book_id from authors, books where authors.author_id = books.author_id;";
-
 mysql:Client db;
 
 function init() {
@@ -24,12 +22,22 @@ function init() {
 service /v1 on ep0 {
 
     resource function get books(int? 'limit) returns Books|Error {
-        stream<record {}, sql:Error> result = db->query(listBooksQuery);
+        int limitOrAll = 'limit ?: 'int:MAX_VALUE;
+        sql:ParameterizedQuery query = `SELECT first_name, last_name, title, book_id FROM authors, books 
+                                        WHERE authors.author_id = books.author_id 
+                                        LIMIT ${limitOrAll};`;
+        stream<record {}, sql:Error> result = db->query(query);
         Book[] books = [];
+
         sql:Error? forEach = result.forEach(function (record{} row) {
             io:println(row);
             books.push(mapToBook(<record { int book_id?; string title?; string first_name?; string last_name?; }>row));
         });
+
+        if (forEach is sql:Error) {
+            return {code: 100, message: "Failed to fetch the book catalogue"};
+        }
+
         return {bookslist: books};
     }
 
