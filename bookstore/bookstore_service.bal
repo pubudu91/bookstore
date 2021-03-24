@@ -1,23 +1,8 @@
-import ballerinax/mysql;
-import ballerina/sql;
 import ballerina/http;
 import ballerina/io;
+import ballerina/sql;
 
 listener http:Listener ep0 = new (9090);
-
-configurable string dbUser = ?;
-configurable string dbPassword = ?;
-
-mysql:Client db;
-
-function init() {
-    var cl = new mysql:Client("localhost", dbUser, dbPassword, "bookstore", 3306);
-    if (cl is error) {
-        panic cl;
-    } else {
-        db = cl;
-    }
-}
 
 service /v1 on ep0 {
 
@@ -26,12 +11,12 @@ service /v1 on ep0 {
         sql:ParameterizedQuery query = `SELECT first_name, last_name, title, book_id FROM authors, books 
                                         WHERE authors.author_id = books.author_id 
                                         LIMIT ${limitOrAll};`;
-        stream<record {}, sql:Error> result = db->query(query);
+        stream<RowType, sql:Error> result = <stream<RowType, sql:Error>> db->query(query, RowType);
         Book[] books = [];
 
         sql:Error? forEach = result.forEach(function (record{} row) {
             io:println(row);
-            books.push(mapToBook(<record { int book_id?; string title?; string first_name?; string last_name?; }>row));
+            books.push(mapToBook(<RowType>row));
         });
 
         if (forEach is sql:Error) {
